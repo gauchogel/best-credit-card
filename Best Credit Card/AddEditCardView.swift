@@ -44,6 +44,15 @@ struct AddEditCardView: View {
         }
     }
 
+    init(scannedInfo: ScannedCardInfo) {
+        existingCard     = nil
+        _name            = State(initialValue: scannedInfo.name)
+        _lastFour        = State(initialValue: scannedInfo.lastFour)
+        _selectedColor   = State(initialValue: .ocean)
+        _baseReward      = State(initialValue: 1.0)
+        _categoryRewards = State(initialValue: [:])
+    }
+
     // MARK: Helpers
 
     private var isEditing: Bool { existingCard != nil }
