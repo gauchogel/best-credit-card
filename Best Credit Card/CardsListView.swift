@@ -1,0 +1,153 @@
+//
+//  CardsListView.swift
+//  Best Credit Card
+//
+
+import SwiftUI
+
+// MARK: - Cards List
+
+struct CardsListView: View {
+    @Environment(CardStore.self) private var store
+    @State private var showingAddCard = false
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                if store.cards.isEmpty {
+                    emptyState
+                } else {
+                    cardList
+                }
+            }
+            .navigationTitle("My Cards")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        showingAddCard = true
+                    } label: {
+                        Image(systemName: "plus.circle.fill")
+                            .font(.title3)
+                    }
+                }
+            }
+            .sheet(isPresented: $showingAddCard) {
+                AddEditCardView()
+            }
+        }
+    }
+
+    // MARK: Empty state
+
+    private var emptyState: some View {
+        VStack(spacing: 20) {
+            Image(systemName: "creditcard.fill")
+                .font(.system(size: 64))
+                .foregroundStyle(.secondary)
+
+            Text("No Cards Added")
+                .font(.title2.weight(.semibold))
+
+            Text("Add your credit cards to get personalised reward recommendations.")
+                .font(.body)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 40)
+
+            Button {
+                showingAddCard = true
+            } label: {
+                Label("Add Your First Card", systemImage: "plus")
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 12)
+                    .background(.blue)
+                    .foregroundStyle(.white)
+                    .clipShape(Capsule())
+            }
+        }
+    }
+
+    // MARK: Card list
+
+    private var cardList: some View {
+        ScrollView {
+            LazyVStack(spacing: 16) {
+                ForEach(store.cards) { card in
+                    CardRowView(card: card)
+                }
+            }
+            .padding()
+        }
+    }
+}
+
+// MARK: - Card Row
+
+struct CardRowView: View {
+    @Environment(CardStore.self) private var store
+    let card: CreditCard
+    @State private var showingEdit = false
+    @State private var showingDeleteConfirm = false
+
+    var body: some View {
+        Button {
+            showingEdit = true
+        } label: {
+            VStack(alignment: .leading, spacing: 12) {
+                CardVisualView(card: card)
+
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(card.name)
+                            .font(.headline)
+                            .foregroundStyle(.primary)
+                        Text(subtitleText)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                }
+            }
+            .padding()
+            .background(.background)
+            .clipShape(RoundedRectangle(cornerRadius: 16))
+            .shadow(color: .black.opacity(0.07), radius: 8, x: 0, y: 2)
+        }
+        .sheet(isPresented: $showingEdit) {
+            AddEditCardView(card: card)
+        }
+        .contextMenu {
+            Button(role: .destructive) {
+                showingDeleteConfirm = true
+            } label: {
+                Label("Delete Card", systemImage: "trash")
+            }
+        }
+        .confirmationDialog(
+            "Delete \(card.name)?",
+            isPresented: $showingDeleteConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("Delete", role: .destructive) {
+                if let index = store.cards.firstIndex(where: { $0.id == card.id }) {
+                    store.deleteCards(at: IndexSet([index]))
+                }
+            }
+        } message: {
+            Text("This action cannot be undone.")
+        }
+    }
+
+    private var subtitleText: String {
+        let bonusCount = card.rewards.count
+        let base = String(format: "Base: %.1f%%", card.baseReward)
+        if bonusCount == 0 {
+            return base
+        }
+        let plural = bonusCount == 1 ? "bonus category" : "bonus categories"
+        return "\(base) · \(bonusCount) \(plural)"
+    }
+}

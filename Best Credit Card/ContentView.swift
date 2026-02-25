@@ -2,20 +2,25 @@
 //  ContentView.swift
 //  Best Credit Card
 //
-//  Created by Scott Vogelgesang on 2/25/26.
-//
 
 import SwiftUI
 
 struct ContentView: View {
+    @State private var store = CardStore()
+
     var body: some View {
-        VStack {
-            Image(systemName: "globe")
-                .imageScale(.large)
-                .foregroundStyle(.tint)
-            Text("Hello, world!")
+        TabView {
+            CardsListView()
+                .tabItem {
+                    Label("My Cards", systemImage: "creditcard.fill")
+                }
+
+            RecommendView()
+                .tabItem {
+                    Label("Find Best Card", systemImage: "star.fill")
+                }
         }
-        .padding()
+        .environment(store)
     }
 }
 
