@@ -28,7 +28,7 @@ class CardStore {
     }
 
     func deleteCards(at offsets: IndexSet) {
-        cards.remove(atOffsets: offsets)
+        offsets.sorted().reversed().forEach { cards.remove(at: $0) }
         save()
     }
 
