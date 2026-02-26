@@ -44,7 +44,7 @@ struct NearbyService {
                     location.coordinate,
                     searchRadius
                 ),
-                placeProperties: GMSPlaceProperty.allProperties
+                placeProperties: [.name, .formattedAddress, .placeID, .types, .coordinate]
             )
             request.includedTypes = prioritySearchTypes
             request.maxResultCount = 20
