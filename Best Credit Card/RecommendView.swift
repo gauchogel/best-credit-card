@@ -10,6 +10,12 @@ import SwiftUI
 struct RecommendView: View {
     @Environment(CardStore.self) private var store
     @State private var selectedCategory: RewardCategory?
+    @State private var lookupMode: LookupMode = .category
+
+    enum LookupMode: String, CaseIterable {
+        case category = "By Category"
+        case merchant = "By Merchant"
+    }
 
     var body: some View {
         NavigationStack {
@@ -19,12 +25,23 @@ struct RecommendView: View {
                 } else {
                     ScrollView {
                         VStack(alignment: .leading, spacing: 24) {
-                            categoryGrid
+                            Picker("Lookup Mode", selection: $lookupMode) {
+                                ForEach(LookupMode.allCases, id: \.self) { mode in
+                                    Text(mode.rawValue).tag(mode)
+                                }
+                            }
+                            .pickerStyle(.segmented)
 
-                            if let category = selectedCategory {
-                                resultsSection(for: category)
-                            } else {
-                                placeholderPrompt
+                            switch lookupMode {
+                            case .category:
+                                categoryGrid
+                                if let category = selectedCategory {
+                                    resultsSection(for: category)
+                                } else {
+                                    placeholderPrompt
+                                }
+                            case .merchant:
+                                MerchantLookupView()
                             }
                         }
                         .padding()

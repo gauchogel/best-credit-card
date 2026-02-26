@@ -7,9 +7,15 @@ import SwiftUI
 
 struct ContentView: View {
     @State private var store = CardStore()
+    @State private var locationManager = LocationManager()
 
     var body: some View {
         TabView {
+            NearbyView()
+                .tabItem {
+                    Label("Nearby", systemImage: "mappin.and.ellipse")
+                }
+
             CardsListView()
                 .tabItem {
                     Label("My Cards", systemImage: "creditcard.fill")
@@ -21,6 +27,7 @@ struct ContentView: View {
                 }
         }
         .environment(store)
+        .environment(locationManager)
     }
 }
 

@@ -10,6 +10,7 @@ import SwiftUI
 struct CardsListView: View {
     @Environment(CardStore.self) private var store
     @State private var showingAddCard = false
+    @State private var showingScanCard = false
 
     var body: some View {
         NavigationStack {
@@ -23,8 +24,17 @@ struct CardsListView: View {
             .navigationTitle("My Cards")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        showingAddCard = true
+                    Menu {
+                        Button {
+                            showingAddCard = true
+                        } label: {
+                            Label("Add Manually", systemImage: "pencil")
+                        }
+                        Button {
+                            showingScanCard = true
+                        } label: {
+                            Label("Import from Screenshot", systemImage: "photo.on.rectangle")
+                        }
                     } label: {
                         Image(systemName: "plus.circle.fill")
                             .font(.title3)
@@ -33,6 +43,9 @@ struct CardsListView: View {
             }
             .sheet(isPresented: $showingAddCard) {
                 AddEditCardView()
+            }
+            .sheet(isPresented: $showingScanCard) {
+                ScanCardView()
             }
         }
     }
@@ -57,11 +70,22 @@ struct CardsListView: View {
             Button {
                 showingAddCard = true
             } label: {
-                Label("Add Your First Card", systemImage: "plus")
+                Label("Add Manually", systemImage: "plus")
                     .padding(.horizontal, 24)
                     .padding(.vertical, 12)
                     .background(.blue)
                     .foregroundStyle(.white)
+                    .clipShape(Capsule())
+            }
+
+            Button {
+                showingScanCard = true
+            } label: {
+                Label("Import from Screenshot", systemImage: "photo.on.rectangle")
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 12)
+                    .background(Color(.systemGray5))
+                    .foregroundStyle(.primary)
                     .clipShape(Capsule())
             }
         }
@@ -116,6 +140,7 @@ struct CardRowView: View {
             .clipShape(RoundedRectangle(cornerRadius: 16))
             .shadow(color: .black.opacity(0.07), radius: 8, x: 0, y: 2)
         }
+        .buttonStyle(.plain)
         .sheet(isPresented: $showingEdit) {
             AddEditCardView(card: card)
         }

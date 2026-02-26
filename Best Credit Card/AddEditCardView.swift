@@ -19,6 +19,12 @@ struct AddEditCardView: View {
     @State private var baseReward: Double
     @State private var categoryRewards: [RewardCategory: Double]
 
+    // Auto-fill
+    @State private var suggestions: [KnownCardRewards] = []
+    @State private var autoFillNotes: String = ""
+    @State private var showAutoFillBanner: Bool = false
+    @State private var searchTask: Task<Void, Never>?
+
     // MARK: Init
 
     init(card: CreditCard? = nil) {
@@ -38,6 +44,24 @@ struct AddEditCardView: View {
         } else {
             _name            = State(initialValue: "")
             _lastFour        = State(initialValue: "")
+            _selectedColor   = State(initialValue: .ocean)
+            _baseReward      = State(initialValue: 1.0)
+            _categoryRewards = State(initialValue: [:])
+        }
+    }
+
+    init(scannedInfo: ScannedCardInfo) {
+        existingCard = nil
+        _name        = State(initialValue: scannedInfo.name)
+        _lastFour    = State(initialValue: scannedInfo.lastFour)
+
+        if let known = scannedInfo.suggestedRewards {
+            _selectedColor      = State(initialValue: known.suggestedColor)
+            _baseReward         = State(initialValue: known.baseReward)
+            _categoryRewards    = State(initialValue: known.categoryRewards)
+            _autoFillNotes      = State(initialValue: known.notes)
+            _showAutoFillBanner = State(initialValue: true)
+        } else {
             _selectedColor   = State(initialValue: .ocean)
             _baseReward      = State(initialValue: 1.0)
             _categoryRewards = State(initialValue: [:])
@@ -65,11 +89,14 @@ struct AddEditCardView: View {
 
     var body: some View {
         NavigationStack {
-            Form {
+            List {
                 cardPreviewSection
                 basicInfoSection
+                autoFillBannerSection
                 rewardsSection
             }
+            .listStyle(.insetGrouped)
+            .scrollDismissesKeyboard(.interactively)
             .navigationTitle(isEditing ? "Edit Card" : "Add Card")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -99,7 +126,43 @@ struct AddEditCardView: View {
 
     private var basicInfoSection: some View {
         Section("Card Details") {
-            TextField("Card name (e.g. Chase Sapphire)", text: $name)
+            VStack(alignment: .leading, spacing: 0) {
+                TextField("Card name (e.g. Chase Sapphire)", text: $name)
+                    .onChange(of: name) { _, newValue in
+                        guard !isEditing else { return }
+                        debouncedSearch(query: newValue)
+                    }
+
+                // Typeahead suggestions
+                if !suggestions.isEmpty {
+                    Divider().padding(.vertical, 4)
+                    ForEach(suggestions, id: \.cardName) { entry in
+                        Button {
+                            applyAutoFill(entry)
+                        } label: {
+                            HStack(spacing: 10) {
+                                Circle()
+                                    .fill(entry.suggestedColor.gradient)
+                                    .frame(width: 24, height: 24)
+                                VStack(alignment: .leading, spacing: 1) {
+                                    Text(entry.cardName)
+                                        .font(.subheadline.weight(.medium))
+                                        .foregroundStyle(.primary)
+                                    Text(entry.notes.prefix(60) + (entry.notes.count > 60 ? "…" : ""))
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(1)
+                                }
+                                Spacer()
+                                Image(systemName: "sparkles")
+                                    .font(.caption)
+                                    .foregroundStyle(.yellow)
+                            }
+                            .padding(.vertical, 4)
+                        }
+                    }
+                }
+            }
 
             HStack {
                 Text("Last 4 digits")
@@ -118,6 +181,39 @@ struct AddEditCardView: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                 colorPicker
+            }
+        }
+    }
+
+    // MARK: Auto-fill banner
+
+    @ViewBuilder
+    private var autoFillBannerSection: some View {
+        if showAutoFillBanner {
+            Section {
+                HStack(spacing: 12) {
+                    Image(systemName: "sparkles")
+                        .foregroundStyle(.yellow)
+                        .font(.title3)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Rewards auto-filled")
+                            .font(.subheadline.weight(.medium))
+                        if !autoFillNotes.isEmpty {
+                            Text(autoFillNotes)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    Spacer()
+                    Button("Clear") {
+                        categoryRewards = [:]
+                        baseReward = 1.0
+                        showAutoFillBanner = false
+                        autoFillNotes = ""
+                    }
+                    .font(.caption)
+                    .buttonStyle(.bordered)
+                }
             }
         }
     }
@@ -167,28 +263,50 @@ struct AddEditCardView: View {
     // MARK: Color picker
 
     private var colorPicker: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 12) {
-                ForEach(CardColor.allCases) { color in
-                    Button {
-                        selectedColor = color
-                    } label: {
-                        ZStack {
-                            Circle()
-                                .fill(color.gradient)
-                                .frame(width: 38, height: 38)
-                            if selectedColor == color {
-                                Image(systemName: "checkmark")
-                                    .font(.caption.weight(.bold))
-                                    .foregroundStyle(.white)
-                            }
+        LazyVGrid(
+            columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 4),
+            spacing: 12
+        ) {
+            ForEach(CardColor.allCases) { color in
+                Button {
+                    selectedColor = color
+                } label: {
+                    ZStack {
+                        Circle()
+                            .fill(color.gradient)
+                            .frame(width: 38, height: 38)
+                        if selectedColor == color {
+                            Image(systemName: "checkmark")
+                                .font(.caption.weight(.bold))
+                                .foregroundStyle(.white)
                         }
                     }
-                    .accessibilityLabel(color.rawValue)
                 }
+                .accessibilityLabel(color.rawValue)
             }
-            .padding(.vertical, 4)
         }
+        .padding(.vertical, 4)
+    }
+
+    // MARK: Auto-fill logic
+
+    private func debouncedSearch(query: String) {
+        searchTask?.cancel()
+        searchTask = Task {
+            try? await Task.sleep(for: .milliseconds(200))
+            guard !Task.isCancelled else { return }
+            suggestions = CardRewardsDatabase.search(query: query)
+        }
+    }
+
+    private func applyAutoFill(_ entry: KnownCardRewards) {
+        name = entry.cardName
+        baseReward = entry.baseReward
+        categoryRewards = entry.categoryRewards
+        selectedColor = entry.suggestedColor
+        autoFillNotes = entry.notes
+        showAutoFillBanner = !entry.notes.isEmpty
+        suggestions = []
     }
 
     // MARK: Save
