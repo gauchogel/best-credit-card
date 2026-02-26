@@ -44,7 +44,7 @@ struct NearbyView: View {
                             .font(.headline.weight(.semibold))
                         if !locationLabel.isEmpty {
                             HStack(spacing: 3) {
-                                Image(systemName: "mappin.fill")
+                                Image(systemName: "mappin")
                                     .font(.system(size: 9, weight: .semibold))
                                     .foregroundStyle(.red)
                                 Text(locationLabel)
