@@ -140,6 +140,7 @@ struct CardRowView: View {
             .clipShape(RoundedRectangle(cornerRadius: 16))
             .shadow(color: .black.opacity(0.07), radius: 8, x: 0, y: 2)
         }
+        .buttonStyle(.plain)
         .sheet(isPresented: $showingEdit) {
             AddEditCardView(card: card)
         }
