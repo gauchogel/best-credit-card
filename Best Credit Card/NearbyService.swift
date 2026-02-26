@@ -5,7 +5,10 @@
 
 import Foundation
 import CoreLocation
-import GooglePlaces
+
+// TODO: Replace with your Google Places API key.
+// Get one at https://console.cloud.google.com — enable "Places API (New)".
+private let googlePlacesAPIKey = "YOUR_GOOGLE_PLACES_API_KEY"
 
 // MARK: - Nearby Merchant
 
@@ -34,53 +37,113 @@ struct NearbyService {
     /// Search radius in meters (≈ 0.3 miles)
     static let searchRadius: Double = 500
 
-    /// Fetches nearby merchants using Google Places, sorted by distance.
+    /// Fetches nearby merchants using the Google Places REST API, sorted by distance.
     static func fetch(near location: CLLocation) async throws -> [NearbyMerchant] {
-        try await withCheckedThrowingContinuation { continuation in
-            let client = GMSPlacesClient.shared()
+        let url = URL(string: "https://places.googleapis.com/v1/places:searchNearby")!
 
-            let request = GMSPlaceSearchNearbyRequest(
-                locationRestriction: GMSPlaceCircularLocationOption(
-                    location.coordinate,
-                    searchRadius
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(googlePlacesAPIKey, forHTTPHeaderField: "X-Goog-Api-Key")
+        request.setValue(
+            "places.id,places.displayName,places.formattedAddress,places.types,places.location",
+            forHTTPHeaderField: "X-Goog-FieldMask"
+        )
+
+        let body = SearchRequest(
+            includedTypes: prioritySearchTypes,
+            maxResultCount: 20,
+            locationRestriction: .init(circle: .init(
+                center: .init(
+                    latitude: location.coordinate.latitude,
+                    longitude: location.coordinate.longitude
                 ),
-                placeProperties: [GMSPlaceProperty.name.rawValue, GMSPlaceProperty.formattedAddress.rawValue, GMSPlaceProperty.placeID.rawValue, GMSPlaceProperty.types.rawValue, GMSPlaceProperty.coordinate.rawValue]
+                radius: searchRadius
+            ))
+        )
+        request.httpBody = try JSONEncoder().encode(body)
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+            let http = response as? HTTPURLResponse
+            throw NSError(
+                domain: "NearbyService",
+                code: http?.statusCode ?? -1,
+                userInfo: [NSLocalizedDescriptionKey: "Places API returned status \(http?.statusCode ?? -1)"]
             )
-            request.includedTypes = prioritySearchTypes
-            request.maxResultCount = 20
+        }
 
-            client.searchNearby(with: request) { results, error in
-                if let error {
-                    continuation.resume(throwing: error)
-                    return
+        let decoded = try JSONDecoder().decode(SearchResponse.self, from: data)
+
+        return (decoded.places ?? []).compactMap { place in
+            guard let id = place.id,
+                  let name = place.displayName?.text else { return nil }
+
+            let types = place.types ?? []
+            let category = types.lazy
+                .compactMap { googlePlaceTypeToRewardCategory[$0] }
+                .first ?? .other
+
+            var distance: CLLocationDistance = 0
+            var coordinate = CLLocationCoordinate2D(latitude: 0, longitude: 0)
+            if let loc = place.location {
+                coordinate = CLLocationCoordinate2D(latitude: loc.latitude, longitude: loc.longitude)
+                distance = location.distance(from: CLLocation(latitude: loc.latitude, longitude: loc.longitude))
+            }
+
+            return NearbyMerchant(
+                id: id,
+                name: name,
+                address: place.formattedAddress ?? "",
+                distance: distance,
+                category: category,
+                googleTypes: types,
+                coordinate: coordinate
+            )
+        }
+        .sorted { $0.distance < $1.distance }
+    }
+
+    // MARK: - REST API Codable Types
+
+    private struct SearchRequest: Encodable {
+        let includedTypes: [String]
+        let maxResultCount: Int
+        let locationRestriction: LocationRestriction
+
+        struct LocationRestriction: Encodable {
+            let circle: Circle
+
+            struct Circle: Encodable {
+                let center: Center
+                let radius: Double
+
+                struct Center: Encodable {
+                    let latitude: Double
+                    let longitude: Double
                 }
+            }
+        }
+    }
 
-                let merchants: [NearbyMerchant] = (results ?? []).compactMap { place in
-                    guard let name = place.name, let placeID = place.placeID else { return nil }
+    private struct SearchResponse: Decodable {
+        let places: [Place]?
 
-                    let types = place.types ?? []
-                    let category = types.lazy
-                        .compactMap { googlePlaceTypeToRewardCategory[$0] }
-                        .first ?? .other
+        struct Place: Decodable {
+            let id: String?
+            let displayName: DisplayName?
+            let formattedAddress: String?
+            let types: [String]?
+            let location: Location?
 
-                    let coord = place.coordinate
-                    let distance = CLLocationCoordinate2DIsValid(coord)
-                        ? location.distance(from: CLLocation(latitude: coord.latitude, longitude: coord.longitude))
-                        : 0
+            struct DisplayName: Decodable {
+                let text: String?
+            }
 
-                    return NearbyMerchant(
-                        id: placeID,
-                        name: name,
-                        address: place.formattedAddress ?? "",
-                        distance: distance,
-                        category: category,
-                        googleTypes: types,
-                        coordinate: coord
-                    )
-                }
-                .sorted { $0.distance < $1.distance }
-
-                continuation.resume(returning: merchants)
+            struct Location: Decodable {
+                let latitude: Double
+                let longitude: Double
             }
         }
     }
@@ -88,7 +151,6 @@ struct NearbyService {
     // MARK: - Priority Types for Search
 
     /// Types sent to the Places API to focus results on reward-relevant merchants.
-    /// Google returns places matching ANY of these types.
     private static let prioritySearchTypes: [String] = [
         // Dining
         "restaurant", "fast_food_restaurant", "cafe", "bakery", "bar",
@@ -114,7 +176,6 @@ struct NearbyService {
     // MARK: - Google Place Type → RewardCategory
 
     /// Maps Google Places `types` strings to the app's RewardCategory.
-    /// First match in the place's types array wins, so order matters at call site.
     static let googlePlaceTypeToRewardCategory: [String: RewardCategory] = [
 
         // ── Dining ────────────────────────────────────────────────────────────
