@@ -37,24 +37,7 @@ struct NearbyView: View {
                     permissionPrompt
                 }
             }
-            .toolbar {
-                ToolbarItem(placement: .principal) {
-                    VStack(spacing: 1) {
-                        Text("Nearby")
-                            .font(.headline.weight(.semibold))
-                        if !locationLabel.isEmpty {
-                            HStack(spacing: 3) {
-                                Image(systemName: "mappin")
-                                    .font(.system(size: 9, weight: .semibold))
-                                    .foregroundStyle(.red)
-                                Text(locationLabel)
-                                    .font(.system(size: 11))
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                    }
-                }
-            }
+            .navigationTitle("Nearby")
         }
     }
 
@@ -177,6 +160,19 @@ struct NearbyView: View {
             } else {
                 ScrollView {
                     LazyVStack(spacing: 12) {
+                        if !locationLabel.isEmpty {
+                            HStack(spacing: 4) {
+                                Image(systemName: "mappin")
+                                    .font(.caption2)
+                                    .foregroundStyle(.red)
+                                Text(locationLabel)
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                                Spacer()
+                            }
+                            .padding(.horizontal, 4)
+                        }
+
                         ForEach(merchants) { merchant in
                             NearbyMerchantRow(merchant: merchant)
                         }
