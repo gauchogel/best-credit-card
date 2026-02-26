@@ -4,8 +4,8 @@
 //
 
 import Foundation
-import MapKit
 import CoreLocation
+import GooglePlaces
 
 // MARK: - Nearby Merchant
 
@@ -15,6 +15,7 @@ struct NearbyMerchant: Identifiable {
     let address: String
     let distance: CLLocationDistance  // meters
     let category: RewardCategory
+    let googleTypes: [String]         // raw Google Places type strings
     let coordinate: CLLocationCoordinate2D
 
     var distanceText: String {
@@ -22,9 +23,7 @@ struct NearbyMerchant: Identifiable {
         if feet < 1000 {
             return String(format: "%.0f ft", feet)
         }
-        let miles = distance / 1609.34
-        return String(format: "%.1f mi", miles)
-
+        return String(format: "%.1f mi", distance / 1609.34)
     }
 }
 
@@ -32,89 +31,180 @@ struct NearbyMerchant: Identifiable {
 
 struct NearbyService {
 
-    /// Search radius in meters (0.25 miles ≈ 402 m)
-    private static let searchRadius: CLLocationDistance = 402
+    /// Search radius in meters (≈ 0.3 miles)
+    static let searchRadius: Double = 500
 
-    /// Fetches nearby merchants within 0.25 miles, sorted by distance.
+    /// Fetches nearby merchants using Google Places, sorted by distance.
     static func fetch(near location: CLLocation) async throws -> [NearbyMerchant] {
-        let region = MKCoordinateRegion(
-            center: location.coordinate,
-            latitudinalMeters: searchRadius * 2,
-            longitudinalMeters: searchRadius * 2
-        )
+        try await withCheckedThrowingContinuation { continuation in
+            let client = GMSPlacesClient.shared()
 
-        var allMerchants: [NearbyMerchant] = []
+            let request = GMSPlaceSearchNearbyRequest(
+                locationRestriction: GMSPlaceCircularLocationOption(
+                    location.coordinate,
+                    searchRadius
+                ),
+                placeProperties: GMSPlaceProperty.allProperties
+            )
+            request.includedTypes = prioritySearchTypes
+            request.maxResultCount = 20
 
-        // Search each POI category we care about
-        for (poiCategory, rewardCategory) in poiMapping {
-            let request = MKLocalPointsOfInterestRequest(center: location.coordinate, radius: searchRadius)
-            request.pointOfInterestFilter = MKPointOfInterestFilter(including: [poiCategory])
-
-            let search = MKLocalSearch(request: request)
-            do {
-                let response = try await search.start()
-                for item in response.mapItems {
-                    let merchant = NearbyMerchant(
-                        id: "\(item.name ?? "")_\(item.placemark.coordinate.latitude)_\(item.placemark.coordinate.longitude)",
-                        name: item.name ?? "Unknown",
-                        address: formatAddress(item.placemark),
-                        distance: location.distance(from: CLLocation(
-                            latitude: item.placemark.coordinate.latitude,
-                            longitude: item.placemark.coordinate.longitude
-                        )),
-                        category: rewardCategory,
-                        coordinate: item.placemark.coordinate
-                    )
-                    allMerchants.append(merchant)
+            let fields: GMSPlaceField = [.name, .formattedAddress, .placeID, .types, .coordinate]
+            client.searchNearby(with: request, fields: fields) { results, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                    return
                 }
-            } catch {
-                // Skip this category on failure, continue with others
-                continue
+
+                let merchants: [NearbyMerchant] = (results ?? []).compactMap { place in
+                    guard let name = place.name, let placeID = place.placeID else { return nil }
+
+                    let types = place.types ?? []
+                    let category = types.lazy
+                        .compactMap { googlePlaceTypeToRewardCategory[$0] }
+                        .first ?? .other
+
+                    let coord = place.coordinate
+                    let distance = CLLocationCoordinate2DIsValid(coord)
+                        ? location.distance(from: CLLocation(latitude: coord.latitude, longitude: coord.longitude))
+                        : 0
+
+                    return NearbyMerchant(
+                        id: placeID,
+                        name: name,
+                        address: place.formattedAddress ?? "",
+                        distance: distance,
+                        category: category,
+                        googleTypes: types,
+                        coordinate: coord
+                    )
+                }
+                .sorted { $0.distance < $1.distance }
+
+                continuation.resume(returning: merchants)
             }
         }
-
-        // Deduplicate by name + rough location
-        var seen = Set<String>()
-        let unique = allMerchants.filter { merchant in
-            let key = "\(merchant.name.lowercased())_\(Int(merchant.coordinate.latitude * 1000))_\(Int(merchant.coordinate.longitude * 1000))"
-            return seen.insert(key).inserted
-        }
-
-        // Sort by distance
-        return unique.sorted { $0.distance < $1.distance }
     }
 
-    // MARK: - POI → RewardCategory Mapping
+    // MARK: - Priority Types for Search
 
-    private static let poiMapping: [(MKPointOfInterestCategory, RewardCategory)] = [
-        (.restaurant, .dining),
-        (.cafe, .dining),
-        (.bakery, .dining),
-        (.brewery, .dining),
-        (.foodMarket, .groceries),
-        (.gasStation, .gas),
-        (.evCharger, .gas),
-        (.hotel, .travel),
-        (.airport, .travel),
-        (.carRental, .travel),
-        (.movieTheater, .entertainment),
-        (.theater, .entertainment),
-        (.amusementPark, .entertainment),
-        (.nightlife, .entertainment),
-        (.stadium, .entertainment),
-        (.zoo, .entertainment),
-        (.pharmacy, .drugstores),
-        (.store, .other),
-        (.parking, .transit),
+    /// Types sent to the Places API to focus results on reward-relevant merchants.
+    /// Google returns places matching ANY of these types.
+    private static let prioritySearchTypes: [String] = [
+        // Dining
+        "restaurant", "fast_food_restaurant", "cafe", "bakery", "bar",
+        "coffee_shop", "pizza_restaurant", "sandwich_shop",
+        // Grocery
+        "supermarket", "grocery_or_supermarket",
+        // Gas
+        "gas_station", "electric_vehicle_charging_station",
+        // Hotels
+        "lodging", "hotel",
+        // Drug Stores
+        "pharmacy", "drugstore",
+        // Entertainment
+        "movie_theater", "amusement_park",
+        // Wholesale
+        "warehouse_store",
+        // Convenience
+        "convenience_store",
+        // Transit
+        "bus_station", "train_station", "subway_station",
     ]
 
-    // MARK: - Helpers
+    // MARK: - Google Place Type → RewardCategory
 
-    private static func formatAddress(_ placemark: MKPlacemark) -> String {
-        var parts: [String] = []
-        if let number = placemark.subThoroughfare { parts.append(number) }
-        if let street = placemark.thoroughfare { parts.append(street) }
-        if parts.isEmpty, let city = placemark.locality { parts.append(city) }
-        return parts.joined(separator: " ")
-    }
+    /// Maps Google Places `types` strings to the app's RewardCategory.
+    /// First match in the place's types array wins, so order matters at call site.
+    static let googlePlaceTypeToRewardCategory: [String: RewardCategory] = [
+
+        // ── Dining ────────────────────────────────────────────────────────────
+        "restaurant":               .dining,
+        "food":                     .dining,
+        "meal_takeaway":            .dining,
+        "meal_delivery":            .dining,
+        "cafe":                     .dining,
+        "bakery":                   .dining,
+        "bar":                      .dining,
+        "night_club":               .dining,
+        "fast_food_restaurant":     .dining,
+        "coffee_shop":              .dining,
+        "sandwich_shop":            .dining,
+        "pizza_restaurant":         .dining,
+        "sushi_restaurant":         .dining,
+        "steak_house":              .dining,
+        "seafood_restaurant":       .dining,
+        "mexican_restaurant":       .dining,
+        "chinese_restaurant":       .dining,
+        "thai_restaurant":          .dining,
+        "indian_restaurant":        .dining,
+        "italian_restaurant":       .dining,
+        "american_restaurant":      .dining,
+        "ramen_restaurant":         .dining,
+        "ice_cream_shop":           .dining,
+        "juice_shop":               .dining,
+        "wine_bar":                 .dining,
+        "cocktail_bar":             .dining,
+        "sports_bar":               .dining,
+        "brunch_restaurant":        .dining,
+
+        // ── Grocery ───────────────────────────────────────────────────────────
+        "supermarket":                  .groceries,
+        "grocery_or_supermarket":       .groceries,
+        "health_food_store":            .groceries,
+        "market":                       .groceries,
+        "convenience_store":            .groceries,
+        "fruit_and_vegetable_store":    .groceries,
+        "butcher_shop":                 .groceries,
+        "seafood_market":               .groceries,
+
+        // ── Gas & EV ──────────────────────────────────────────────────────────
+        "gas_station":                          .gas,
+        "electric_vehicle_charging_station":    .gas,
+
+        // ── Travel ────────────────────────────────────────────────────────────
+        "airport":              .travel,
+        "travel_agency":        .travel,
+        "car_rental":           .travel,
+        "campground":           .travel,
+        "tourist_attraction":   .travel,
+        "lodging":              .travel,
+        "hotel":                .travel,
+        "motel":                .travel,
+        "extended_stay_hotel":  .travel,
+        "bed_and_breakfast":    .travel,
+        "resort_hotel":         .travel,
+        "hostel":               .travel,
+        "cottage":              .travel,
+
+        // ── Transit ───────────────────────────────────────────────────────────
+        "taxi_stand":           .transit,
+        "bus_station":          .transit,
+        "train_station":        .transit,
+        "subway_station":       .transit,
+        "transit_station":      .transit,
+        "light_rail_station":   .transit,
+        "ferry_terminal":       .transit,
+        "parking":              .transit,
+
+        // ── Wholesale Clubs ───────────────────────────────────────────────────
+        "warehouse_store":  .wholesale,
+
+        // ── Drug Stores ───────────────────────────────────────────────────────
+        "pharmacy":     .drugstores,
+        "drugstore":    .drugstores,
+
+        // ── Entertainment ─────────────────────────────────────────────────────
+        "movie_theater":            .entertainment,
+        "amusement_park":           .entertainment,
+        "bowling_alley":            .entertainment,
+        "stadium":                  .entertainment,
+        "performing_arts_theater":  .entertainment,
+        "comedy_club":              .entertainment,
+        "casino":                   .entertainment,
+        "golf_course":              .entertainment,
+        "gym":                      .entertainment,
+        "fitness_center":           .entertainment,
+        "spa":                      .entertainment,
+    ]
 }
