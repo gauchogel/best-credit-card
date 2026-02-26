@@ -23,8 +23,12 @@ class LocationManager: NSObject, CLLocationManagerDelegate {
         super.init()
         manager.delegate = self
         manager.desiredAccuracy = kCLLocationAccuracyBest
-        // No default — wait for a real GPS fix so we never show
-        // merchants from the wrong city.
+
+        #if targetEnvironment(simulator)
+        // Simulator defaults to SF; use Santa Barbara for testing.
+        location = Self.defaultLocation
+        #endif
+
         if manager.authorizationStatus == .authorizedWhenInUse ||
            manager.authorizationStatus == .authorizedAlways {
             manager.startUpdatingLocation()

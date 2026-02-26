@@ -6,9 +6,8 @@
 import Foundation
 import CoreLocation
 
-// TODO: Replace with your Google Places API key.
-// Get one at https://console.cloud.google.com — enable "Places API (New)".
-private let googlePlacesAPIKey = "YOUR_GOOGLE_PLACES_API_KEY"
+// API key is defined in Secrets.swift (gitignored).
+// Copy Secrets.swift.example → Secrets.swift and add your key.
 
 // MARK: - Nearby Merchant
 
