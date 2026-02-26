@@ -16,6 +16,7 @@ struct NearbyView: View {
     @State private var isLoading = false
     @State private var errorMessage: String?
     @State private var hasLoadedOnce = false
+    @State private var locationLabel = ""
 
     var body: some View {
         NavigationStack {
@@ -35,7 +36,24 @@ struct NearbyView: View {
                     permissionPrompt
                 }
             }
-            .navigationTitle("Nearby")
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    VStack(spacing: 1) {
+                        Text("Nearby")
+                            .font(.headline.weight(.semibold))
+                        if !locationLabel.isEmpty {
+                            HStack(spacing: 3) {
+                                Image(systemName: "mappin.fill")
+                                    .font(.system(size: 9, weight: .semibold))
+                                    .foregroundStyle(.red)
+                                Text(locationLabel)
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -189,6 +207,7 @@ struct NearbyView: View {
 
         isLoading = true
         errorMessage = nil
+        reverseGeocode(location)
 
         do {
             merchants = try await NearbyService.fetch(near: location)
@@ -198,6 +217,15 @@ struct NearbyView: View {
         }
 
         isLoading = false
+    }
+
+    private func reverseGeocode(_ location: CLLocation) {
+        Task {
+            guard let placemarks = try? await CLGeocoder().reverseGeocodeLocation(location),
+                  let p = placemarks.first else { return }
+            let parts = [p.locality, p.administrativeArea].compactMap { $0 }
+            locationLabel = parts.joined(separator: ", ")
+        }
     }
 }
 
