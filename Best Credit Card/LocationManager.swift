@@ -22,8 +22,13 @@ class LocationManager: NSObject, CLLocationManagerDelegate {
         authorizationStatus = manager.authorizationStatus
         super.init()
         manager.delegate = self
-        manager.desiredAccuracy = kCLLocationAccuracyHundredMeters
-        location = Self.defaultLocation
+        manager.desiredAccuracy = kCLLocationAccuracyBest
+        // No default — wait for a real GPS fix so we never show
+        // merchants from the wrong city.
+        if manager.authorizationStatus == .authorizedWhenInUse ||
+           manager.authorizationStatus == .authorizedAlways {
+            manager.startUpdatingLocation()
+        }
     }
 
     func requestPermission() {
