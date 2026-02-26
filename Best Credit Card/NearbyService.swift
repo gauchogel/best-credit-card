@@ -49,8 +49,7 @@ struct NearbyService {
             request.includedTypes = prioritySearchTypes
             request.maxResultCount = 20
 
-            let fields: GMSPlaceField = [.name, .formattedAddress, .placeID, .types, .coordinate]
-            client.searchNearby(with: request, fields: fields) { results, error in
+            client.searchNearby(with: request) { results, error in
                 if let error {
                     continuation.resume(throwing: error)
                     return
