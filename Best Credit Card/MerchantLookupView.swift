@@ -134,10 +134,11 @@ struct MerchantLookupView: View {
 
     @ViewBuilder
     private func rankedCardsSection(category: RewardCategory) -> some View {
-        let ranked = store.rankedCards(for: category)
+        let ranked = store.rankedCards(for: category, merchantName: resolvedLabel)
 
         VStack(alignment: .leading, spacing: 14) {
-            Label("Best cards for \(category.rawValue)", systemImage: category.icon)
+            Label("Best cards for \(resolvedLabel.isEmpty ? category.rawValue : resolvedLabel)",
+                  systemImage: category.icon)
                 .font(.headline)
 
             if ranked.isEmpty {
@@ -149,7 +150,8 @@ struct MerchantLookupView: View {
                         card: item.card,
                         rate: item.rate,
                         rank: index + 1,
-                        isBest: index == 0
+                        isBest: index == 0,
+                        source: item.source
                     )
                 }
             }

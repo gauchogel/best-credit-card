@@ -13,6 +13,23 @@ struct KnownCardRewards {
     let categoryRewards: [RewardCategory: Double]
     let suggestedColor: CardColor
     let notes: String
+    let vendorBonuses: [VendorBonus]
+
+    init(
+        cardName: String,
+        baseReward: Double,
+        categoryRewards: [RewardCategory: Double],
+        suggestedColor: CardColor,
+        notes: String,
+        vendorBonuses: [VendorBonus] = []
+    ) {
+        self.cardName = cardName
+        self.baseReward = baseReward
+        self.categoryRewards = categoryRewards
+        self.suggestedColor = suggestedColor
+        self.notes = notes
+        self.vendorBonuses = vendorBonuses
+    }
 }
 
 // MARK: - Database
@@ -101,9 +118,34 @@ struct CardRewardsDatabase {
         KnownCardRewards(
             cardName: "Chase Amazon Prime Visa",
             baseReward: 1.0,
-            categoryRewards: [.onlineShopping: 5.0, .dining: 2.0, .gas: 2.0, .drugstores: 2.0],
+            categoryRewards: [.dining: 2.0, .gas: 2.0, .drugstores: 2.0],
             suggestedColor: .midnight,
-            notes: "5% at Amazon.com and Whole Foods with Prime membership."
+            notes: "5% at Amazon.com and Whole Foods with Prime membership.",
+            vendorBonuses: [
+                VendorBonus(vendorName: "Amazon", rewardRate: 5.0),
+                VendorBonus(vendorName: "Whole Foods", rewardRate: 5.0),
+            ]
+        ),
+        KnownCardRewards(
+            cardName: "Chase United Explorer",
+            baseReward: 1.0,
+            categoryRewards: [.dining: 2.0, .travel: 2.0],
+            suggestedColor: .midnight,
+            notes: "2x at United Airlines, dining, and hotels. Earns United MileagePlus miles.",
+            vendorBonuses: [
+                VendorBonus(vendorName: "United Airlines", rewardRate: 2.0),
+                VendorBonus(vendorName: "United", rewardRate: 2.0),
+            ]
+        ),
+        KnownCardRewards(
+            cardName: "Chase Southwest Rapid Rewards Plus",
+            baseReward: 1.0,
+            categoryRewards: [.transit: 2.0],
+            suggestedColor: .ocean,
+            notes: "2x on Southwest, Rapid Rewards hotel/car partners, and transit.",
+            vendorBonuses: [
+                VendorBonus(vendorName: "Southwest", rewardRate: 2.0),
+            ]
         ),
 
         // ──────────────────────────────────────────────
@@ -150,49 +192,70 @@ struct CardRewardsDatabase {
             baseReward: 1.0,
             categoryRewards: [.travel: 3.0, .dining: 2.0, .groceries: 2.0],
             suggestedColor: .midnight,
-            notes: "3x Delta purchases. Earns SkyMiles."
+            notes: "3x Delta purchases. Earns SkyMiles.",
+            vendorBonuses: [
+                VendorBonus(vendorName: "Delta", rewardRate: 3.0),
+            ]
         ),
         KnownCardRewards(
             cardName: "Amex Delta SkyMiles Gold",
             baseReward: 1.0,
             categoryRewards: [.travel: 2.0, .dining: 2.0, .groceries: 2.0],
             suggestedColor: .gold,
-            notes: "2x Delta, restaurants, and US supermarkets. Earns SkyMiles."
+            notes: "2x Delta, restaurants, and US supermarkets. Earns SkyMiles.",
+            vendorBonuses: [
+                VendorBonus(vendorName: "Delta", rewardRate: 2.0),
+            ]
         ),
         KnownCardRewards(
             cardName: "Amex Hilton Honors Aspire",
             baseReward: 3.0,
-            categoryRewards: [.travel: 14.0, .dining: 7.0],
+            categoryRewards: [.dining: 7.0, .travel: 7.0],
             suggestedColor: .midnight,
-            notes: "14x at Hilton. 7x dining, flights, car rentals. Earns Hilton points."
+            notes: "14x at Hilton. 7x dining, flights, car rentals. Earns Hilton points.",
+            vendorBonuses: [
+                VendorBonus(vendorName: "Hilton", rewardRate: 14.0),
+            ]
         ),
         KnownCardRewards(
             cardName: "Amex Hilton Honors Surpass",
             baseReward: 3.0,
-            categoryRewards: [.travel: 12.0, .dining: 6.0, .groceries: 6.0, .gas: 6.0],
+            categoryRewards: [.dining: 6.0, .groceries: 6.0, .gas: 6.0],
             suggestedColor: .gold,
-            notes: "12x at Hilton. 6x restaurants, supermarkets, gas. Hilton points."
+            notes: "12x at Hilton. 6x restaurants, supermarkets, gas. Hilton points.",
+            vendorBonuses: [
+                VendorBonus(vendorName: "Hilton", rewardRate: 12.0),
+            ]
         ),
         KnownCardRewards(
             cardName: "Amex Hilton Honors",
             baseReward: 3.0,
-            categoryRewards: [.travel: 7.0, .dining: 5.0, .groceries: 5.0, .gas: 5.0],
+            categoryRewards: [.dining: 5.0, .groceries: 5.0, .gas: 5.0],
             suggestedColor: .slate,
-            notes: "7x at Hilton. 5x restaurants, supermarkets, gas. Hilton points."
+            notes: "7x at Hilton. 5x restaurants, supermarkets, gas. Hilton points.",
+            vendorBonuses: [
+                VendorBonus(vendorName: "Hilton", rewardRate: 7.0),
+            ]
         ),
         KnownCardRewards(
             cardName: "Amex Marriott Bonvoy Brilliant",
             baseReward: 2.0,
-            categoryRewards: [.travel: 6.0, .dining: 3.0, .groceries: 3.0],
+            categoryRewards: [.dining: 3.0, .groceries: 3.0, .travel: 3.0],
             suggestedColor: .midnight,
-            notes: "6x at Marriott. 3x dining, groceries, flights. Marriott points."
+            notes: "6x at Marriott. 3x dining, groceries, flights. Marriott points.",
+            vendorBonuses: [
+                VendorBonus(vendorName: "Marriott", rewardRate: 6.0),
+            ]
         ),
         KnownCardRewards(
             cardName: "Amex Marriott Bonvoy",
             baseReward: 2.0,
-            categoryRewards: [.travel: 4.0, .dining: 2.0, .groceries: 2.0],
+            categoryRewards: [.dining: 2.0, .groceries: 2.0, .travel: 2.0],
             suggestedColor: .slate,
-            notes: "4x at Marriott. 2x other travel, dining, groceries. Marriott points."
+            notes: "4x at Marriott. 2x other travel, dining, groceries. Marriott points.",
+            vendorBonuses: [
+                VendorBonus(vendorName: "Marriott", rewardRate: 4.0),
+            ]
         ),
 
         // ──────────────────────────────────────────────
@@ -233,6 +296,16 @@ struct CardRewardsDatabase {
             categoryRewards: [.groceries: 2.0, .gas: 2.0],
             suggestedColor: .ocean,
             notes: "2x groceries and gas. Points rounded up to nearest 10. ThankYou Points."
+        ),
+        KnownCardRewards(
+            cardName: "Citi / AAdvantage Platinum Select",
+            baseReward: 1.0,
+            categoryRewards: [.dining: 2.0, .gas: 2.0],
+            suggestedColor: .crimson,
+            notes: "2x American Airlines, dining, gas. Earns AAdvantage miles.",
+            vendorBonuses: [
+                VendorBonus(vendorName: "American Airlines", rewardRate: 2.0),
+            ]
         ),
 
         // ──────────────────────────────────────────────
@@ -374,7 +447,15 @@ struct CardRewardsDatabase {
             baseReward: 1.0,
             categoryRewards: [.onlineShopping: 3.0, .dining: 2.0, .transit: 2.0, .entertainment: 2.0, .gas: 2.0, .groceries: 2.0],
             suggestedColor: .slate,
-            notes: "3% at Apple and select merchants (Uber, T-Mobile, Nike, etc). 2% via Apple Pay."
+            notes: "3% at Apple and select merchants (Uber, T-Mobile, Nike, etc). 2% via Apple Pay.",
+            vendorBonuses: [
+                VendorBonus(vendorName: "Apple", rewardRate: 3.0),
+                VendorBonus(vendorName: "Uber", rewardRate: 3.0),
+                VendorBonus(vendorName: "T-Mobile", rewardRate: 3.0),
+                VendorBonus(vendorName: "Nike", rewardRate: 3.0),
+                VendorBonus(vendorName: "Walgreens", rewardRate: 3.0),
+                VendorBonus(vendorName: "Exxon", rewardRate: 3.0),
+            ]
         ),
         KnownCardRewards(
             cardName: "Bilt Mastercard",
@@ -388,7 +469,30 @@ struct CardRewardsDatabase {
             baseReward: 2.0,
             categoryRewards: [:],
             suggestedColor: .ocean,
-            notes: "2% flat on all purchases. 3% at PayPal checkout."
+            notes: "2% flat on all purchases. 3% at PayPal checkout.",
+            vendorBonuses: [
+                VendorBonus(vendorName: "PayPal", rewardRate: 3.0),
+            ]
+        ),
+        KnownCardRewards(
+            cardName: "Costco Anywhere Visa by Citi",
+            baseReward: 1.0,
+            categoryRewards: [.dining: 3.0, .travel: 3.0, .gas: 4.0],
+            suggestedColor: .crimson,
+            notes: "4% gas (first $7K/yr). 3% dining & travel. 2% Costco. Cash back.",
+            vendorBonuses: [
+                VendorBonus(vendorName: "Costco", rewardRate: 2.0),
+            ]
+        ),
+        KnownCardRewards(
+            cardName: "Target RedCard Credit",
+            baseReward: 5.0,
+            categoryRewards: [:],
+            suggestedColor: .crimson,
+            notes: "5% off at Target stores and Target.com.",
+            vendorBonuses: [
+                VendorBonus(vendorName: "Target", rewardRate: 5.0),
+            ]
         ),
     ]
 }

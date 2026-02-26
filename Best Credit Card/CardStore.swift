@@ -6,6 +6,26 @@
 import Foundation
 import Observation
 
+// MARK: - Reward Source
+
+/// Indicates why a card was ranked at its rate — vendor bonus vs. category bonus vs. base.
+enum RewardSource: Equatable {
+    case vendorBonus(vendorName: String)
+    case categoryBonus
+    case baseRate
+}
+
+/// A card paired with its effective reward rate and the source of that rate.
+struct RankedCard: Identifiable {
+    let card: CreditCard
+    let rate: Double
+    let source: RewardSource
+
+    var id: UUID { card.id }
+}
+
+// MARK: - Card Store
+
 @Observable
 class CardStore {
     var cards: [CreditCard] = []
@@ -33,10 +53,29 @@ class CardStore {
     }
 
     /// Returns all cards sorted by their reward rate for the given category, highest first.
+    /// Use this when there is no specific merchant name (e.g. "By Category" mode).
     func rankedCards(for category: RewardCategory) -> [(card: CreditCard, rate: Double)] {
         cards
             .map { ($0, $0.reward(for: category)) }
             .sorted { $0.1 > $1.1 }
+    }
+
+    /// Returns all cards ranked by effective reward for a specific merchant.
+    /// Checks vendor bonuses first; falls back to category rate.
+    func rankedCards(for category: RewardCategory, merchantName: String) -> [RankedCard] {
+        cards
+            .map { card -> RankedCard in
+                if let vendor = card.vendorReward(for: merchantName) {
+                    return RankedCard(card: card, rate: vendor.rewardRate,
+                                      source: .vendorBonus(vendorName: vendor.vendorName))
+                }
+                let categoryRate = card.reward(for: category)
+                let source: RewardSource = card.rewards[category.rawValue] != nil
+                    ? .categoryBonus
+                    : .baseRate
+                return RankedCard(card: card, rate: categoryRate, source: source)
+            }
+            .sorted { $0.rate > $1.rate }
     }
 
     // MARK: - Persistence

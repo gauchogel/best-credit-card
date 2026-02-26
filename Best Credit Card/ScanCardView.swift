@@ -225,6 +225,7 @@ struct ScanCardView: View {
             let rewards: [String: Double]
             let baseReward: Double
             let color: CardColor
+            let vendorBonuses: [VendorBonus]
 
             if let known = info.suggestedRewards {
                 rewards = Dictionary(
@@ -232,10 +233,12 @@ struct ScanCardView: View {
                 )
                 baseReward = known.baseReward
                 color = known.suggestedColor
+                vendorBonuses = known.vendorBonuses
             } else {
                 rewards = [:]
                 baseReward = 1.0
                 color = .ocean
+                vendorBonuses = []
             }
 
             store.addCard(CreditCard(
@@ -243,7 +246,8 @@ struct ScanCardView: View {
                 lastFour: info.lastFour,
                 cardColor: color,
                 rewards: rewards,
-                baseReward: baseReward
+                baseReward: baseReward,
+                vendorBonuses: vendorBonuses
             ))
         }
         dismiss()

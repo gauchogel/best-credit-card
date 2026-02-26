@@ -173,6 +173,7 @@ struct CardRecommendationRow: View {
     let rate: Double
     let rank: Int
     let isBest: Bool
+    var source: RewardSource = .categoryBonus
 
     var body: some View {
         HStack(spacing: 14) {
@@ -211,13 +212,19 @@ struct CardRecommendationRow: View {
             Spacer()
 
             // Reward rate
-            VStack(alignment: .trailing, spacing: 0) {
+            VStack(alignment: .trailing, spacing: 2) {
                 Text(String(format: "%.1f%%", rate))
                     .font(.title3.weight(.bold))
                     .foregroundStyle(isBest ? .green : .primary)
-                Text("back")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                if case .vendorBonus(let vendorName) = source {
+                    Label(vendorName, systemImage: "storefront")
+                        .font(.caption2)
+                        .foregroundStyle(.orange)
+                } else {
+                    Text("back")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
             }
         }
         .padding()

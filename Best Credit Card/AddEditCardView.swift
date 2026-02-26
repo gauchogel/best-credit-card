@@ -18,6 +18,7 @@ struct AddEditCardView: View {
     @State private var selectedColor: CardColor
     @State private var baseReward: Double
     @State private var categoryRewards: [RewardCategory: Double]
+    @State private var vendorBonuses: [VendorBonus]
 
     // Auto-fill
     @State private var suggestions: [KnownCardRewards] = []
@@ -44,12 +45,14 @@ struct AddEditCardView: View {
                 }
             }
             _categoryRewards = State(initialValue: rewards)
+            _vendorBonuses   = State(initialValue: card.vendorBonuses)
         } else {
             _name            = State(initialValue: "")
             _lastFour        = State(initialValue: "")
             _selectedColor   = State(initialValue: .ocean)
             _baseReward      = State(initialValue: 1.0)
             _categoryRewards = State(initialValue: [:])
+            _vendorBonuses   = State(initialValue: [])
         }
     }
 
@@ -62,12 +65,14 @@ struct AddEditCardView: View {
             _selectedColor      = State(initialValue: known.suggestedColor)
             _baseReward         = State(initialValue: known.baseReward)
             _categoryRewards    = State(initialValue: known.categoryRewards)
+            _vendorBonuses      = State(initialValue: known.vendorBonuses)
             _autoFillNotes      = State(initialValue: known.notes)
             _showAutoFillBanner = State(initialValue: true)
         } else {
             _selectedColor   = State(initialValue: .ocean)
             _baseReward      = State(initialValue: 1.0)
             _categoryRewards = State(initialValue: [:])
+            _vendorBonuses   = State(initialValue: [])
         }
     }
 
@@ -84,7 +89,8 @@ struct AddEditCardView: View {
             rewards: Dictionary(
                 uniqueKeysWithValues: categoryRewards.map { ($0.key.rawValue, $0.value) }
             ),
-            baseReward: baseReward
+            baseReward: baseReward,
+            vendorBonuses: vendorBonuses
         )
     }
 
@@ -97,6 +103,7 @@ struct AddEditCardView: View {
                 basicInfoSection
                 autoFillBannerSection
                 rewardsSection
+                vendorBonusesSection
                 if isEditing {
                     Section {
                         Button(role: .destructive) {
@@ -238,6 +245,7 @@ struct AddEditCardView: View {
                     Spacer()
                     Button("Clear") {
                         categoryRewards = [:]
+                        vendorBonuses = []
                         baseReward = 1.0
                         showAutoFillBanner = false
                         autoFillNotes = ""
@@ -291,6 +299,32 @@ struct AddEditCardView: View {
         }
     }
 
+    // MARK: Vendor bonuses
+
+    private var vendorBonusesSection: some View {
+        Section {
+            ForEach($vendorBonuses) { $bonus in
+                VendorBonusRow(bonus: $bonus)
+            }
+            .onDelete { offsets in
+                vendorBonuses.remove(atOffsets: offsets)
+            }
+
+            Button {
+                withAnimation {
+                    vendorBonuses.append(VendorBonus(vendorName: "", rewardRate: 0))
+                }
+            } label: {
+                Label("Add Vendor Bonus", systemImage: "plus.circle")
+                    .font(.subheadline)
+            }
+        } header: {
+            Text("Vendor-specific bonuses")
+        } footer: {
+            Text("Earn extra rewards at specific stores (e.g. 5% at Amazon, 14x at Hilton).")
+        }
+    }
+
     // MARK: Color picker
 
     private var colorPicker: some View {
@@ -334,6 +368,7 @@ struct AddEditCardView: View {
         name = entry.cardName
         baseReward = entry.baseReward
         categoryRewards = entry.categoryRewards
+        vendorBonuses = entry.vendorBonuses
         selectedColor = entry.suggestedColor
         autoFillNotes = entry.notes
         showAutoFillBanner = !entry.notes.isEmpty
@@ -346,14 +381,19 @@ struct AddEditCardView: View {
         let rewardsDict = Dictionary(
             uniqueKeysWithValues: categoryRewards.map { ($0.key.rawValue, $0.value) }
         )
+        // Filter out vendor bonuses with empty names or zero rates
+        let cleanedBonuses = vendorBonuses.filter {
+            !$0.vendorName.trimmingCharacters(in: .whitespaces).isEmpty && $0.rewardRate > 0
+        }
         let trimmedName = name.trimmingCharacters(in: .whitespaces)
 
         if isEditing, var updated = existingCard {
-            updated.name      = trimmedName
-            updated.lastFour  = lastFour
-            updated.cardColor = selectedColor
-            updated.baseReward = baseReward
-            updated.rewards   = rewardsDict
+            updated.name         = trimmedName
+            updated.lastFour     = lastFour
+            updated.cardColor    = selectedColor
+            updated.baseReward   = baseReward
+            updated.rewards      = rewardsDict
+            updated.vendorBonuses = cleanedBonuses
             store.updateCard(updated)
         } else {
             let newCard = CreditCard(
@@ -361,7 +401,8 @@ struct AddEditCardView: View {
                 lastFour: lastFour,
                 cardColor: selectedColor,
                 rewards: rewardsDict,
-                baseReward: baseReward
+                baseReward: baseReward,
+                vendorBonuses: cleanedBonuses
             )
             store.addCard(newCard)
         }
@@ -399,6 +440,41 @@ struct CategoryRewardRow: View {
         .onAppear {
             if let v = value {
                 text = String(v)
+            }
+        }
+    }
+}
+
+// MARK: - Vendor Bonus Row
+
+struct VendorBonusRow: View {
+    @Binding var bonus: VendorBonus
+    @State private var rateText: String = ""
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "storefront")
+                .foregroundStyle(.orange)
+                .frame(width: 24)
+            TextField("Vendor name", text: $bonus.vendorName)
+                .font(.subheadline)
+            Spacer()
+            TextField("0", text: $rateText)
+                .multilineTextAlignment(.trailing)
+                .keyboardType(.decimalPad)
+                .frame(width: 60)
+                .onChange(of: rateText) { _, new in
+                    let cleaned = new.trimmingCharacters(in: .whitespaces)
+                    if let v = Double(cleaned) {
+                        bonus.rewardRate = v
+                    }
+                }
+            Text("%")
+                .foregroundStyle(.secondary)
+        }
+        .onAppear {
+            if bonus.rewardRate > 0 {
+                rateText = String(bonus.rewardRate)
             }
         }
     }

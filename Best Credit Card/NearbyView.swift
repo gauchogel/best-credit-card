@@ -233,8 +233,8 @@ struct NearbyMerchantRow: View {
     let merchant: NearbyMerchant
     @State private var showingDetail = false
 
-    private var bestCard: (card: CreditCard, rate: Double)? {
-        store.rankedCards(for: merchant.category).first
+    private var bestCard: RankedCard? {
+        store.rankedCards(for: merchant.category, merchantName: merchant.name).first
     }
 
     var body: some View {
@@ -301,9 +301,16 @@ struct NearbyMerchantRow: View {
 
                         Spacer()
 
-                        Text(String(format: "%.1f%%", best.rate))
-                            .font(.subheadline.weight(.bold))
-                            .foregroundStyle(.green)
+                        VStack(alignment: .trailing, spacing: 2) {
+                            Text(String(format: "%.1f%%", best.rate))
+                                .font(.subheadline.weight(.bold))
+                                .foregroundStyle(.green)
+                            if case .vendorBonus(let name) = best.source {
+                                Label(name, systemImage: "storefront")
+                                    .font(.caption2)
+                                    .foregroundStyle(.orange)
+                            }
+                        }
                     }
                 }
             }
@@ -326,8 +333,8 @@ struct NearbyMerchantDetailView: View {
     @Environment(\.dismiss) private var dismiss
     let merchant: NearbyMerchant
 
-    private var rankedCards: [(card: CreditCard, rate: Double)] {
-        store.rankedCards(for: merchant.category)
+    private var rankedCards: [RankedCard] {
+        store.rankedCards(for: merchant.category, merchantName: merchant.name)
     }
 
     var body: some View {
@@ -353,7 +360,7 @@ struct NearbyMerchantDetailView: View {
                 // Best card
                 if let best = rankedCards.first {
                     Section("Best Card") {
-                        DetailCardRow(card: best.card, rate: best.rate, isBest: true)
+                        DetailCardRow(card: best.card, rate: best.rate, isBest: true, source: best.source)
                     }
                 } else {
                     Section("Best Card") {
@@ -366,8 +373,8 @@ struct NearbyMerchantDetailView: View {
                 // Other cards
                 if rankedCards.count > 1 {
                     Section("Your Other Cards") {
-                        ForEach(Array(rankedCards.dropFirst()), id: \.card.id) { item in
-                            DetailCardRow(card: item.card, rate: item.rate, isBest: false)
+                        ForEach(Array(rankedCards.dropFirst())) { item in
+                            DetailCardRow(card: item.card, rate: item.rate, isBest: false, source: item.source)
                         }
                     }
                 }
@@ -403,6 +410,7 @@ struct DetailCardRow: View {
     let card: CreditCard
     let rate: Double
     let isBest: Bool
+    var source: RewardSource = .categoryBonus
 
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
@@ -430,9 +438,16 @@ struct DetailCardRow: View {
 
             Spacer()
 
-            Text(String(format: "%.1f%%", rate))
-                .font(.title3.weight(.bold))
-                .foregroundStyle(isBest ? .green : .secondary)
+            VStack(alignment: .trailing, spacing: 2) {
+                Text(String(format: "%.1f%%", rate))
+                    .font(.title3.weight(.bold))
+                    .foregroundStyle(isBest ? .green : .secondary)
+                if case .vendorBonus(let name) = source {
+                    Label(name, systemImage: "storefront")
+                        .font(.caption2)
+                        .foregroundStyle(.orange)
+                }
+            }
         }
         .padding(.vertical, 4)
     }

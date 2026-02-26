@@ -168,11 +168,17 @@ struct CardRowView: View {
 
     private var subtitleText: String {
         let bonusCount = card.rewards.count
+        let vendorCount = card.vendorBonuses.count
         let base = String(format: "Base: %.1f%%", card.baseReward)
-        if bonusCount == 0 {
-            return base
+        var parts = [base]
+        if bonusCount > 0 {
+            let plural = bonusCount == 1 ? "bonus category" : "bonus categories"
+            parts.append("\(bonusCount) \(plural)")
         }
-        let plural = bonusCount == 1 ? "bonus category" : "bonus categories"
-        return "\(base) · \(bonusCount) \(plural)"
+        if vendorCount > 0 {
+            let plural = vendorCount == 1 ? "vendor bonus" : "vendor bonuses"
+            parts.append("\(vendorCount) \(plural)")
+        }
+        return parts.joined(separator: " · ")
     }
 }
