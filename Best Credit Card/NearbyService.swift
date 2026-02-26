@@ -67,10 +67,12 @@ struct NearbyService {
 
         guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
             let http = response as? HTTPURLResponse
+            let body = String(data: data, encoding: .utf8) ?? "no body"
+            print("Places API error \(http?.statusCode ?? -1): \(body)")
             throw NSError(
                 domain: "NearbyService",
                 code: http?.statusCode ?? -1,
-                userInfo: [NSLocalizedDescriptionKey: "Places API returned status \(http?.statusCode ?? -1)"]
+                userInfo: [NSLocalizedDescriptionKey: "Places API error \(http?.statusCode ?? -1): \(body)"]
             )
         }
 
@@ -153,24 +155,17 @@ struct NearbyService {
     /// Types sent to the Places API to focus results on reward-relevant merchants.
     private static let prioritySearchTypes: [String] = [
         // Dining
-        "restaurant", "fast_food_restaurant", "cafe", "bakery", "bar",
-        "coffee_shop", "pizza_restaurant", "sandwich_shop",
+        "restaurant", "cafe", "bakery", "bar",
         // Grocery
-        "supermarket", "grocery_or_supermarket",
+        "supermarket", "convenience_store",
         // Gas
         "gas_station", "electric_vehicle_charging_station",
         // Hotels
-        "lodging", "hotel",
+        "lodging",
         // Drug Stores
-        "pharmacy", "drugstore",
+        "pharmacy",
         // Entertainment
         "movie_theater", "amusement_park",
-        // Wholesale
-        "warehouse_store",
-        // Convenience
-        "convenience_store",
-        // Transit
-        "bus_station", "train_station", "subway_station",
     ]
 
     // MARK: - Google Place Type → RewardCategory
