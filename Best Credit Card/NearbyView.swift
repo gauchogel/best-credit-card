@@ -184,7 +184,6 @@ struct NearbyView: View {
     private func loadMerchants() async {
         guard let location = locationManager.location else {
             locationManager.startUpdating()
-            // Will retry via onChange when location arrives
             return
         }
 
@@ -207,77 +206,209 @@ struct NearbyView: View {
 struct NearbyMerchantRow: View {
     @Environment(CardStore.self) private var store
     let merchant: NearbyMerchant
+    @State private var showingDetail = false
 
     private var bestCard: (card: CreditCard, rate: Double)? {
         store.rankedCards(for: merchant.category).first
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            // Merchant info
-            HStack(spacing: 12) {
-                ZStack {
-                    Circle()
-                        .fill(Color.blue.opacity(0.12))
-                        .frame(width: 42, height: 42)
-                    Image(systemName: merchant.category.icon)
-                        .font(.body)
-                        .foregroundStyle(.blue)
-                }
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(merchant.name)
-                        .font(.subheadline.weight(.semibold))
-                        .lineLimit(1)
-                    if !merchant.address.isEmpty {
-                        Text(merchant.address)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
+        Button {
+            showingDetail = true
+        } label: {
+            VStack(alignment: .leading, spacing: 10) {
+                // Merchant info
+                HStack(spacing: 12) {
+                    ZStack {
+                        Circle()
+                            .fill(Color.blue.opacity(0.12))
+                            .frame(width: 42, height: 42)
+                        Image(systemName: merchant.category.icon)
+                            .font(.body)
+                            .foregroundStyle(.blue)
                     }
-                }
 
-                Spacer()
-
-                VStack(alignment: .trailing, spacing: 2) {
-                    Text(merchant.distanceText)
-                        .font(.caption.weight(.medium))
-                        .foregroundStyle(.secondary)
-                    Text(merchant.category.rawValue)
-                        .font(.caption2)
-                        .foregroundStyle(.blue)
-                }
-            }
-
-            // Best card recommendation
-            if let best = bestCard {
-                Divider()
-                HStack(spacing: 10) {
-                    CardVisualView(card: best.card, compact: true)
-                        .frame(width: 60)
-
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text("Use \(best.card.name)")
-                            .font(.caption.weight(.semibold))
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(merchant.name)
+                            .font(.subheadline.weight(.semibold))
                             .lineLimit(1)
-                        if !best.card.lastFour.isEmpty {
-                            Text("···· \(best.card.lastFour)")
-                                .font(.caption2)
+                        if !merchant.address.isEmpty {
+                            Text(merchant.address)
+                                .font(.caption)
                                 .foregroundStyle(.secondary)
+                                .lineLimit(1)
                         }
                     }
 
                     Spacer()
 
-                    Text(String(format: "%.1f%%", best.rate))
-                        .font(.subheadline.weight(.bold))
-                        .foregroundStyle(.green)
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text(merchant.distanceText)
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(.secondary)
+                        Text(merchant.category.rawValue)
+                            .font(.caption2)
+                            .foregroundStyle(.blue)
+                    }
+
+                    Image(systemName: "chevron.right")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
+
+                // Best card recommendation
+                if let best = bestCard {
+                    Divider()
+                    HStack(spacing: 10) {
+                        CardVisualView(card: best.card, compact: true)
+                            .frame(width: 60)
+
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text("Use \(best.card.name)")
+                                .font(.caption.weight(.semibold))
+                                .lineLimit(1)
+                            if !best.card.lastFour.isEmpty {
+                                Text("···· \(best.card.lastFour)")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+
+                        Spacer()
+
+                        Text(String(format: "%.1f%%", best.rate))
+                            .font(.subheadline.weight(.bold))
+                            .foregroundStyle(.green)
+                    }
+                }
+            }
+            .padding()
+            .background(Color(.systemBackground))
+            .clipShape(RoundedRectangle(cornerRadius: 14))
+            .shadow(color: .black.opacity(0.06), radius: 6, x: 0, y: 2)
+        }
+        .buttonStyle(.plain)
+        .sheet(isPresented: $showingDetail) {
+            NearbyMerchantDetailView(merchant: merchant)
+        }
+    }
+}
+
+// MARK: - Merchant Detail View
+
+struct NearbyMerchantDetailView: View {
+    @Environment(CardStore.self) private var store
+    @Environment(\.dismiss) private var dismiss
+    let merchant: NearbyMerchant
+
+    private var rankedCards: [(card: CreditCard, rate: Double)] {
+        store.rankedCards(for: merchant.category)
+    }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                // Place info
+                Section {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(merchant.name)
+                            .font(.title2.bold())
+                        if !merchant.address.isEmpty {
+                            Text(merchant.address)
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
+                        Label(merchant.distanceText, systemImage: "location")
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                    }
+                    .padding(.vertical, 4)
+                }
+
+                // Best card
+                if let best = rankedCards.first {
+                    Section("Best Card") {
+                        DetailCardRow(card: best.card, rate: best.rate, isBest: true)
+                    }
+                } else {
+                    Section("Best Card") {
+                        Text("Add cards in My Cards tab to see recommendations.")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                // Other cards
+                if rankedCards.count > 1 {
+                    Section("Your Other Cards") {
+                        ForEach(Array(rankedCards.dropFirst()), id: \.card.id) { item in
+                            DetailCardRow(card: item.card, rate: item.rate, isBest: false)
+                        }
+                    }
+                }
+
+                // Category info
+                Section("Category") {
+                    Label(merchant.category.rawValue, systemImage: merchant.category.icon)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+
+                    if !merchant.googleTypes.isEmpty {
+                        Text(merchant.googleTypes.prefix(4).joined(separator: ", "))
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+            }
+            .listStyle(.insetGrouped)
+            .navigationTitle("Card Recommendation")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
                 }
             }
         }
-        .padding()
-        .background(Color(.systemBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 14))
-        .shadow(color: .black.opacity(0.06), radius: 6, x: 0, y: 2)
+    }
+}
+
+// MARK: - Detail Card Row
+
+struct DetailCardRow: View {
+    let card: CreditCard
+    let rate: Double
+    let isBest: Bool
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 12) {
+            CardVisualView(card: card, compact: true)
+                .frame(width: 64)
+                .overlay(alignment: .topTrailing) {
+                    if isBest {
+                        Image(systemName: "star.fill")
+                            .font(.caption2)
+                            .foregroundStyle(.yellow)
+                            .offset(x: 4, y: -4)
+                    }
+                }
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(card.name)
+                    .font(.subheadline.weight(.semibold))
+                    .lineLimit(1)
+                if !card.lastFour.isEmpty {
+                    Text("···· \(card.lastFour)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            Spacer()
+
+            Text(String(format: "%.1f%%", rate))
+                .font(.title3.weight(.bold))
+                .foregroundStyle(isBest ? .green : .secondary)
+        }
+        .padding(.vertical, 4)
     }
 }
