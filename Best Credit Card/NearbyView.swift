@@ -5,6 +5,7 @@
 
 import SwiftUI
 import CoreLocation
+import MapKit
 
 // MARK: - Nearby View
 
@@ -221,9 +222,9 @@ struct NearbyView: View {
 
     private func reverseGeocode(_ location: CLLocation) {
         Task {
-            guard let placemarks = try? await CLGeocoder().reverseGeocodeLocation(location),
-                  let p = placemarks.first else { return }
-            let parts = [p.locality, p.administrativeArea].compactMap { $0 }
+            let request = MKReverseGeocodingRequest(coordinate: location.coordinate)
+            guard let placemark = try? await request.start().first else { return }
+            let parts = [placemark.locality, placemark.administrativeArea].compactMap { $0 }
             locationLabel = parts.joined(separator: ", ")
         }
     }
