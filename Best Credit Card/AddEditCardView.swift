@@ -25,6 +25,9 @@ struct AddEditCardView: View {
     @State private var showAutoFillBanner: Bool = false
     @State private var searchTask: Task<Void, Never>?
 
+    // Delete
+    @State private var showingDeleteConfirm = false
+
     // MARK: Init
 
     init(card: CreditCard? = nil) {
@@ -94,6 +97,19 @@ struct AddEditCardView: View {
                 basicInfoSection
                 autoFillBannerSection
                 rewardsSection
+                if isEditing {
+                    Section {
+                        Button(role: .destructive) {
+                            showingDeleteConfirm = true
+                        } label: {
+                            HStack {
+                                Spacer()
+                                Label("Remove Card", systemImage: "trash")
+                                Spacer()
+                            }
+                        }
+                    }
+                }
             }
             .listStyle(.insetGrouped)
             .scrollDismissesKeyboard(.interactively)
@@ -108,6 +124,21 @@ struct AddEditCardView: View {
                         .fontWeight(.semibold)
                         .disabled(!isFormValid)
                 }
+            }
+            .confirmationDialog(
+                "Remove \(existingCard?.name ?? "Card")?",
+                isPresented: $showingDeleteConfirm,
+                titleVisibility: .visible
+            ) {
+                Button("Remove Card", role: .destructive) {
+                    if let card = existingCard,
+                       let index = store.cards.firstIndex(where: { $0.id == card.id }) {
+                        store.deleteCards(at: IndexSet([index]))
+                    }
+                    dismiss()
+                }
+            } message: {
+                Text("This action cannot be undone.")
             }
         }
     }
