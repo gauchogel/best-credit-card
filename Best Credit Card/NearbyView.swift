@@ -222,9 +222,9 @@ struct NearbyView: View {
 
     private func reverseGeocode(_ location: CLLocation) {
         Task {
-            let request = MKReverseGeocodingRequest(coordinate: location.coordinate)
-            guard let placemark = try? await request.start().first else { return }
-            let parts = [placemark.locality, placemark.administrativeArea].compactMap { $0 }
+            guard let placemarks = try? await CLGeocoder().reverseGeocodeLocation(location),
+                  let p = placemarks.first else { return }
+            let parts = [p.locality, p.administrativeArea].compactMap { $0 }
             locationLabel = parts.joined(separator: ", ")
         }
     }
